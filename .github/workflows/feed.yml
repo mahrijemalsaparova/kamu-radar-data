@@ -1,0 +1,40 @@
+name: Update feed
+
+on:
+  schedule:
+    # 00:40 and 06:10 Turkey time (UTC+3): after the Resmî Gazete is published at midnight.
+    - cron: "40 21 * * *"
+    - cron: "10 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: feed
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pdftotext
+        run: sudo apt-get update -q && sudo apt-get install -y -q poppler-utils
+      - name: Build feed.json
+        run: node build-feed.mjs 21
+      - name: Commit if changed
+        run: |
+          if git diff --quiet -- feed.json; then
+            echo "No changes"
+            exit 0
+          fi
+          git config user.name "kamu-radar-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add feed.json
+          git commit -m "Update feed $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push
